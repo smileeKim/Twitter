@@ -119,7 +119,7 @@ app.get(
   twitterAuthenticationToken,
   async (request, response) => {
     let { user_id } = request;
-    const getFollowing = `SELECT  distinct name FROM user INNER JOIN follower ON user.user_id = follower.following_user_id  WHERE username = '${username}';`;
+    const getFollowing = `SELECT  distinct name FROM user INNER JOIN follower ON user.user_id = follower.following_user_id  WHERE user_id = ${user_id};`;
     const getResponse = await db.get(getFollowing);
     response.send(getResponse);
   }
@@ -129,8 +129,8 @@ app.get(
   "/user/followers/",
   twitterAuthenticationToken,
   async (request, response) => {
-    let { username } = request;
-    const getFollowers = `SELECT name FROM user INNER JOIN follower ON user.user_id = follower.follower_user_id WHERE username = '${username};'`;
+    let { user_id } = request;
+    const getFollowers = `SELECT name FROM user INNER JOIN follower ON user.user_id = follower.follower_user_id WHERE user_id = '${user_id};'`;
     const getResponse = await db.get(getFollowers);
     response.send(getResponse);
   }
