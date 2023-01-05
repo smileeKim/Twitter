@@ -167,7 +167,7 @@ app.get(
     // Checking whether the logged id user is following the tweeted user or not
 
     if (
-      userFollowers.every(
+      userFollowers.some(
         (item) => item.following_user_id === tweetResult.user_id
       )
     ) {
