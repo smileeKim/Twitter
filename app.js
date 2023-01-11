@@ -171,8 +171,8 @@ app.get(
         (item) => item.following_user_id === tweetResult.user_id
       )
     ) {
-      const getTweet = `SELECT tweet, count(like_id) as likes, count(reply_id) as replies, date_time as dateTime
-        FROM tweet INNER JOIN like ON tweet.user_id = like.user_id INNER JOIN reply ON reply.user_id = tweet.user_id 
+      const getTweet = `SELECT tweet, count(like_id) as likes, count(reply) as replies, date_time as dateTime
+        FROM tweet LEFT JOIN like ON tweet.tweet_id = like.tweet_id LEFT JOIN reply On tweet.tweet_id = reply.tweet_id 
         WHERE  tweet.tweet_id = ${tweetId};`;
       const getResponseTweet = await db.all(getTweet); //Scenario 2
       response.send(getResponseTweet);
@@ -216,12 +216,14 @@ app.get(
     ) {
       const likesQuery = `
                 SELECT 
-                name
+                 *
                 FROM like NATURAL JOIN user
                 WHERE tweet_id=${tweetId}; 
                 `;
       const result = await db.all(likesQuery);
-      response.send({ likes: result });
+      response.send({
+        likes: result.map(({ name }) => name),
+      });
     } else {
       response.status(401);
       response.send("Invalid request");
@@ -235,15 +237,45 @@ app.get(
   twitterAuthenticationToken,
   async (request, response) => {
     const { tweetId } = request.params;
-    const getUser = `SELECT * FROM user NATURAl JOIN tweet WHERE tweet_id = ${tweetId};`;
-    const getResponse = await db.get(getUser);
-    if (getResponse === undefined) {
-      response.status(400);
-      response.send("Invalid Request"); //Scenario 1
+    const { username } = request;
+    const userObjectQuery = `SELECT user_id FROM user WHERE username='${username}';`;
+    const userObject = await db.get(userObjectQuery);
+    const tweetsQuery = `SELECT 
+   *
+   FROM tweet
+ 
+   WHERE tweet_id=${tweetId}
+   `;
+
+    const tweetResult = await db.get(tweetsQuery);
+    const userFollowersQuery = `
+    SELECT 
+    *
+   FROM follower INNER JOIN user on user.user_id = follower.following_user_id
+    WHERE follower.follower_user_id = ${userObject.user_id};`;
+
+    const userFollowers = await db.all(userFollowersQuery);
+
+    // Checking whether the logged id user is following the tweeted user or not
+
+    if (
+      userFollowers.some(
+        (item) => item.following_user_id === tweetResult.user_id
+      )
+    ) {
+      const likesQuery = `
+                SELECT 
+                 name,reply
+                FROM reply NATURAL JOIN user
+                WHERE tweet_id=${tweetId}; 
+                `;
+      const result = await db.all(likesQuery);
+      response.send({
+        replies: result,
+      });
     } else {
-      const getUserList = `SELECT  name, reply FROM user NATURAl JOIN reply WHERE tweet_id = ${tweetId};`;
-      const getResponseList = await db.all(getUserList);
-      response.send(getResponseList); //Scenario 2
+      response.status(401);
+      response.send("Invalid request");
     }
   }
 );
@@ -256,8 +288,8 @@ app.get(
     const userObjectQuery = `SELECT user_id FROM user WHERE username='${username}';`;
     const userObject = await db.get(userObjectQuery);
     const getAllTweets = `SELECT tweet, count(like_id) as likes, count(reply) as replies, date_time as dateTime
-    FROM (user INNER JOIN tweet ON user.user_id = tweet.user_id ) INNER JOIN like ON tweet.user_id =
-    like.user_id INNER JOIN reply ON tweet.user_id = reply.user_id WHERE user.user_id = ${userObject.user_id};`;
+    FROM user LEFT JOIN tweet ON user.user_id = tweet.user_id LEFT JOIN like ON tweet.tweet_id =
+    like.like_id LEFT JOIN reply ON tweet.tweet_id = reply.reply_id`;
     const getResponse = await db.all(getAllTweets);
     response.send(getResponse);
   }
@@ -284,13 +316,13 @@ app.delete(
     const userObject = await db.get(userObjectQuery);
     const deleteUser = `SELECT * FROM user NATURAl JOIN tweet WHERE tweet_id = ${tweetId};`;
     const responseGet = await db.get(deleteUser);
-    if (userObject.user_id === undefined) {
-      response.status(401);
-      response.send("Invalid Request");
-    } else if (userObject.user_id === responseGet.user_id) {
+    if (userObject.user_id === responseGet.user_id) {
       const deleteUserId = `DELETE FROM tweet WHERE tweet_id = ${tweetId};`;
       await db.run(deleteUserId);
       response.send("Tweet Removed");
+    } else {
+      response.status(401);
+      response.send("Invalid Request");
     }
   }
 );
